@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "GridLens — Utility Inspection Intelligence"
+description = "Drone inspection workspace for electric utilities, organizing photo evidence, asset findings, analytics, reports, and human-reviewed crew work orders."
+version = "1.0.0"
+id = "artifacts/gridlens"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23146
+
+[services.development]
+run = "pnpm --filter @workspace/gridlens run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gridlens", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/gridlens/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23146"
+BASE_PATH = "/"

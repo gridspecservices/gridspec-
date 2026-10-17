@@ -1,36 +1,307 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /workspace:
+    get:
+      operationId: getWorkspace
+      responses:
+        "200":
+          description: Workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workspace" }
+  /summary:
+    get:
+      operationId: getSummary
+      responses:
+        "200":
+          description: Analytics computed from workspace records
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Summary" }
+  /projects:
+    post:
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /imports:
+    post:
+      operationId: importAssets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportInput" }
+      responses:
+        "201":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportResult" }
+  /assets/{id}:
+    patch:
+      operationId: updateAsset
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+  /work-orders:
+    post:
+      operationId: createWorkOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkOrderInput" }
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkOrder" }
+  /work-orders/{id}:
+    patch:
+      operationId: updateWorkOrder
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkOrderUpdate" }
+      responses:
+        "200":
+          description: Updated after transition checks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkOrder" }
+  /demo:
+    post:
+      operationId: loadDemo
+      responses:
+        "200":
+          description: Add fictional demo data idempotently
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workspace" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Upload URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    ProjectInput:
+      type: object
+      required: [name, utility, circuit]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 150 }
+        utility: { type: string, minLength: 1, maxLength: 100 }
+        circuit: { type: string, minLength: 1, maxLength: 100 }
+    Project:
+      allOf:
+        - { $ref: "#/components/schemas/ProjectInput" }
+        - type: object
+          required: [id, status, date, demo]
+          properties:
+            id: { type: string }
+            status: { type: string }
+            date: { type: string }
+            demo: { type: boolean }
+    Severity:
+      type: string
+      enum: [Critical, High, Medium, Low]
+    OrderStatus:
+      type: string
+      enum: [Draft, Needs Review, Approved, Assigned, Completed]
+    Photo:
+      type: object
+      required: [name, url]
+      properties:
+        name: { type: string }
+        url: { type: string }
+    AssetInput:
+      type: object
+      required: [structureId, circuit, inspectionDate, defectType, severity, confidence, notes]
+      properties:
+        structureId: { type: string, minLength: 1, maxLength: 100 }
+        circuit: { type: string, minLength: 1 }
+        latitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        longitude: { type: [number, "null"], minimum: -180, maximum: 180 }
+        inspectionDate: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        defectType: { type: string, minLength: 1, maxLength: 100 }
+        severity: { $ref: "#/components/schemas/Severity" }
+        confidence: { type: number, minimum: 0, maximum: 100 }
+        notes: { type: string, maxLength: 5000 }
+        photos:
+          type: array
+          items: { $ref: "#/components/schemas/Photo" }
+    Asset:
+      allOf:
+        - { $ref: "#/components/schemas/AssetInput" }
+        - type: object
+          required: [id, projectId, utility, reviewed, demo, photos]
+          properties:
+            id: { type: string }
+            projectId: { type: string }
+            utility: { type: string }
+            reviewed: { type: boolean }
+            demo: { type: boolean }
+            photos:
+              type: array
+              items: { $ref: "#/components/schemas/Photo" }
+    AssetUpdate:
+      type: object
+      properties:
+        notes: { type: string, maxLength: 5000 }
+        severity: { $ref: "#/components/schemas/Severity" }
+        defectType: { type: string, minLength: 1 }
+        reviewed: { type: boolean }
+        photos:
+          type: array
+          items: { $ref: "#/components/schemas/Photo" }
+    ImportInput:
+      type: object
+      required: [projectId, assets]
+      properties:
+        projectId: { type: string }
+        assets:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/AssetInput" }
+    ImportResult:
+      type: object
+      required: [count, message]
+      properties:
+        count: { type: integer }
+        message: { type: string }
+    WorkOrderInput:
+      type: object
+      required: [assetId, issue, priority, crew]
+      properties:
+        assetId: { type: string }
+        issue: { type: string, minLength: 1, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/Severity" }
+        crew: { type: string, minLength: 1, maxLength: 200 }
+    WorkOrder:
+      allOf:
+        - { $ref: "#/components/schemas/WorkOrderInput" }
+        - type: object
+          required: [id, status, createdAt, reviewer]
+          properties:
+            id: { type: string }
+            status: { $ref: "#/components/schemas/OrderStatus" }
+            createdAt: { type: string }
+            reviewer: { type: string }
+    WorkOrderUpdate:
+      type: object
+      properties:
+        issue: { type: string, minLength: 1, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/Severity" }
+        crew: { type: string, minLength: 1, maxLength: 200 }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        reviewer: { type: string, maxLength: 150 }
+        reviewConfirmed: { type: boolean }
+    AuditEntry:
+      type: object
+      required: [id, time, entityId, action, actor]
+      properties:
+        id: { type: string }
+        time: { type: string }
+        entityId: { type: string }
+        action: { type: string }
+        actor: { type: string }
+    Workspace:
+      type: object
+      required: [projects, assets, workOrders, audit]
+      properties:
+        projects:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/Asset" }
+        workOrders:
+          type: array
+          items: { $ref: "#/components/schemas/WorkOrder" }
+        audit:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEntry" }
+    Count:
+      type: object
+      required: [name, count]
+      properties:
+        name: { type: string }
+        count: { type: integer }
+    Summary:
+      type: object
+      required: [totalAssets, totalProjects, criticalFindings, openWorkOrders, reviewed, byType, bySeverity, byCircuit, trend]
+      properties:
+        totalAssets: { type: integer }
+        totalProjects: { type: integer }
+        criticalFindings: { type: integer }
+        openWorkOrders: { type: integer }
+        reviewed: { type: integer }
+        byType: { type: array, items: { $ref: "#/components/schemas/Count" } }
+        bySeverity: { type: array, items: { $ref: "#/components/schemas/Count" } }
+        byCircuit: { type: array, items: { $ref: "#/components/schemas/Count" } }
+        trend: { type: array, items: { $ref: "#/components/schemas/Count" } }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1, maximum: 20971520 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
