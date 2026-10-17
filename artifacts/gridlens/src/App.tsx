@@ -67,7 +67,7 @@ function Shell() {
       <aside className={cx('sidebar', mobileMenu && 'sidebar-open')}>
         <Link href="/" className="brand" data-testid="link-home">
           <span className="brand-symbol"><Bolt size={18} strokeWidth={2.6} /></span>
-          <span className="brand-name">grid<span>lens</span></span>
+          <span className="brand-name">Grid<span>Spec</span></span>
           <span className="brand-build">FIELD / 02</span>
         </Link>
         <div className="workspace-switch">
