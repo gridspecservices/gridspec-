@@ -698,6 +698,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .evidence-meta { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 9px 11px 10px; gap: 5px; }
 .evidence-meta > div:first-child { display: grid; gap: 4px; }.evidence-meta > div:first-child b { color: #3e5b5b; font-size: 9px; }
 .evidence-meta .panel-label { font-size: 7px; }
+.evidence-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 15px; padding: 8px 0 2px; }
+.button-photo { position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid #cbd9d2; border-radius: 4px; color: #31554b; background: #fff; font-size: 8px; font-weight: 700; cursor: pointer; }
+.button-photo:hover { background: #f4f8f5; border-color: #8da99b; }
+.button-photo input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.button-photo input:focus-visible + span { outline: 2px solid #357a61; }
+.button-photo.button-disabled { opacity: .7; cursor: wait; }
+.photo-format-hint { color: #85948f; font: 7px var(--app-font-mono); }
+.photo-upload-error,.photo-load-error { color: #a13a31; background: #fff4f1; border: 1px solid #f1d1ca; border-radius: 3px; padding: 6px 8px; font-size: 8px; }
+.photo-upload-error { flex-basis: 100%; }
+.photo-load-error { position: absolute; left: 50%; top: 50%; z-index: 6; width: min(280px,85%); transform: translate(-50%,-50%); }
+.photo-image-failure { display: grid; width: 100%; height: 100%; place-items: center; color: #f3d4ce; background: #2c4545; font: 9px var(--app-font-mono); letter-spacing: .08em; }
+.photo-strip { display: flex; gap: 7px; margin: 2px 15px 8px; overflow-x: auto; }
+.photo-thumb { flex: 0 0 86px; display: grid; gap: 4px; padding: 4px; border: 1px solid #dce5e1; border-radius: 4px; background: white; text-align: left; cursor: pointer; }
+.photo-thumb-active { border-color: #4b9178; box-shadow: 0 0 0 1px #4b9178; }
+.photo-thumb img { display: block; width: 76px; height: 48px; object-fit: cover; border-radius: 2px; }
+.photo-thumb span { overflow: hidden; color: #60766e; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .confidence-big { color: #386f62; font: 14px var(--app-font-mono); }.confidence-big small { margin-left: 1px; font-size: 9px; }
 .confidence-meter { grid-column: 1/-1; height: 3px; margin-top: 3px; border-radius: 3px; background: #edf1ed; }.confidence-meter span { display: block; height: 100%; border-radius: inherit; background: #59a68b; }
 .asset-info-grid { display: grid; grid-template-columns: minmax(0,1fr) 198px; align-items: start; gap: 16px; padding: 16px 15px 11px; }

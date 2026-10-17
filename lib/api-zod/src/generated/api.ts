@@ -63,8 +63,13 @@ export const GetWorkspaceResponse = zod.object({
   "confidence": zod.number().min(getWorkspaceResponseAssetsItemOneConfidenceMin).max(getWorkspaceResponseAssetsItemOneConfidenceMax),
   "notes": zod.string().max(getWorkspaceResponseAssetsItemOneNotesMax),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }).and(zod.object({
   "id": zod.string(),
@@ -73,8 +78,13 @@ export const GetWorkspaceResponse = zod.object({
   "reviewed": zod.boolean(),
   "demo": zod.boolean(),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }))),
   "workOrders": zod.array(zod.object({
@@ -172,8 +182,13 @@ export const UpdateAssetBody = zod.object({
   "defectType": zod.string().min(1).optional(),
   "reviewed": zod.boolean().optional(),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 })).optional()
 })
 
@@ -207,8 +222,13 @@ export const UpdateAssetResponse = zod.object({
   "confidence": zod.number().min(updateAssetResponseOneConfidenceMin).max(updateAssetResponseOneConfidenceMax),
   "notes": zod.string().max(updateAssetResponseOneNotesMax),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }).and(zod.object({
   "id": zod.string(),
@@ -217,10 +237,108 @@ export const UpdateAssetResponse = zod.object({
   "reviewed": zod.boolean(),
   "demo": zod.boolean(),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }))
+
+
+export const CreateAssetPhotoParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+export const createAssetPhotoBodyNameMax = 255;
+
+export const createAssetPhotoBodySizeMax = 26214400;
+
+
+
+export const CreateAssetPhotoBody = zod.object({
+  "objectPath": zod.string().min(1),
+  "name": zod.string().min(1).max(createAssetPhotoBodyNameMax),
+  "size": zod.number().int().min(1).max(createAssetPhotoBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const CreateAssetPhotoResponse = zod.object({
+  "id": zod.string().optional(),
+  "name": zod.string(),
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
+})
+
+
+export const requestPhotoUploadUrlBodyNameMax = 255;
+
+export const requestPhotoUploadUrlBodySizeMax = 26214400;
+
+
+
+export const RequestPhotoUploadUrlBody = zod.object({
+  "name": zod.string().min(1).max(requestPhotoUploadUrlBodyNameMax),
+  "size": zod.number().int().min(1).max(requestPhotoUploadUrlBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const requestPhotoUploadUrlResponseMetadataNameMax = 255;
+
+export const requestPhotoUploadUrlResponseMetadataSizeMax = 26214400;
+
+
+
+export const RequestPhotoUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1).max(requestPhotoUploadUrlResponseMetadataNameMax),
+  "size": zod.number().int().min(1).max(requestPhotoUploadUrlResponseMetadataSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+}).optional()
+})
+
+
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
+
+
+export const GetCurrentAuthUserResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().email().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
+})
+
+
+export const BeginBrowserLoginQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const BeginBrowserLoginResponse = zod.void()
+
+
+export const HandleBrowserLoginCallbackResponse = zod.void()
+
+
+export const LogoutBrowserSessionQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const LogoutBrowserSessionResponse = zod.void()
 
 
 export const createWorkOrderBodyIssueMax = 5000;
@@ -306,8 +424,13 @@ export const LoadDemoResponse = zod.object({
   "confidence": zod.number().min(loadDemoResponseAssetsItemOneConfidenceMin).max(loadDemoResponseAssetsItemOneConfidenceMax),
   "notes": zod.string().max(loadDemoResponseAssetsItemOneNotesMax),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }).and(zod.object({
   "id": zod.string(),
@@ -316,8 +439,13 @@ export const LoadDemoResponse = zod.object({
   "reviewed": zod.boolean(),
   "demo": zod.boolean(),
   "photos": zod.array(zod.object({
+  "id": zod.string().optional(),
   "name": zod.string(),
-  "url": zod.string()
+  "url": zod.string(),
+  "objectPath": zod.string().optional(),
+  "contentType": zod.string().optional(),
+  "size": zod.number().int().optional(),
+  "createdAt": zod.string().optional()
 }))
 }))),
   "workOrders": zod.array(zod.object({

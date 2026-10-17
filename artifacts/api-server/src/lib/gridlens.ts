@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import {
   activityTable,
+  assetPhotosTable,
   assetsTable,
   db,
   projectsTable,
@@ -264,17 +265,34 @@ export async function seedDemoData(): Promise<void> {
   });
 }
 
-export async function getWorkspaceData() {
-  const [projects, assets, workOrders, audit] = await Promise.all([
+export async function getWorkspaceData(includePrivatePhotos = false) {
+  const [projects, assets, workOrders, audit, uploadedPhotos] = await Promise.all([
     db.select().from(projectsTable).orderBy(desc(projectsTable.date)),
     db.select().from(assetsTable).orderBy(desc(assetsTable.inspectionDate)),
     db.select().from(workOrdersTable).orderBy(desc(workOrdersTable.createdAt)),
     db.select().from(activityTable).orderBy(desc(activityTable.time)).limit(12),
+    includePrivatePhotos ? db.select().from(assetPhotosTable) : Promise.resolve([]),
   ]);
 
   return {
     projects,
-    assets,
+    assets: assets.map((asset) => ({
+      ...asset,
+      photos: [
+        ...asset.photos,
+        ...uploadedPhotos
+          .filter((photo) => photo.assetId === asset.id)
+          .map((photo) => ({
+            id: photo.id,
+            name: photo.name,
+            url: `/api/storage${photo.objectPath}`,
+            objectPath: photo.objectPath,
+            contentType: photo.contentType,
+            size: photo.size,
+            createdAt: photo.createdAt.toISOString(),
+          })),
+      ],
+    })),
     workOrders: workOrders.map((order) => ({
       ...order,
       createdAt: order.createdAt.toISOString(),

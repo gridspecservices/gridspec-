@@ -62,6 +62,77 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Asset" }
+  /assets/{id}/photos:
+    post:
+      operationId: createAssetPhoto
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetPhotoInput" }
+      responses:
+        "201":
+          description: Photo metadata saved for the asset.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Photo" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestPhotoUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Presigned upload URL.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      parameters:
+        - { name: objectPath, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Private uploaded image content.
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        "401": { description: Sign-in required. }
+        "404": { description: Image not found. }
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      responses:
+        "200":
+          description: Current authentication state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUserEnvelope" }
+  /login:
+    get:
+      operationId: beginBrowserLogin
+      parameters:
+        - { name: returnTo, in: query, required: false, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the identity provider. }
+  /callback:
+    get:
+      operationId: handleBrowserLoginCallback
+      responses:
+        "302": { description: Redirect to the application after login. }
+  /logout:
+    get:
+      operationId: logoutBrowserSession
+      parameters:
+        - { name: returnTo, in: query, required: false, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the identity provider logout. }
   /work-orders:
     post:
       operationId: createWorkOrder
@@ -119,8 +190,52 @@ components:
       type: object
       required: [name, url]
       properties:
+        id: { type: string }
         name: { type: string }
         url: { type: string }
+        objectPath: { type: string }
+        contentType: { type: string }
+        size: { type: integer }
+        createdAt: { type: string }
+    AssetPhotoInput:
+      type: object
+      required: [objectPath, name, size, contentType]
+      properties:
+        objectPath: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 26214400 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 26214400 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        metadata: { $ref: "#/components/schemas/UploadUrlRequest" }
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: [string, "null"], format: email }
+        firstName: { type: [string, "null"] }
+        lastName: { type: [string, "null"] }
+        profileImageUrl: { type: [string, "null"] }
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - { $ref: "#/components/schemas/AuthUser" }
+            - { type: "null" }
     AssetInput:
       type: object
       required: [structureId, circuit, inspectionDate, defectType, severity, confidence, notes]

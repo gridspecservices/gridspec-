@@ -16,6 +16,7 @@ import {
   useCreateWorkOrder, useGetSummary, useGetWorkspace, useLoadDemo, useUpdateAsset,
 } from '@workspace/api-client-react';
 import type { Asset, AssetUpdate, Project, Severity, Summary, WorkOrder, Workspace } from '@workspace/api-client-react';
+import { useAuth } from '@workspace/replit-auth-web';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import NotFound from '@/pages/not-found';
 import './index.css';
@@ -263,7 +264,7 @@ function ProjectPage() {
           <div className="rail-footer"><MapPin size={14} /><span>Inspection area</span><b>{project.circuit}</b></div>
         </aside>
         <section className="asset-review">
-          {selectedAsset ? <AssetReview asset={selectedAsset} pending={updateAsset.isPending} onSave={saveAsset} onWorkOrder={() => setWorkOrderOpen(true)} onBack={() => setMobilePanel(false)} /> : <div className="asset-review-empty"><Crosshair size={26} /><h2>Select an asset to review</h2><p>Choose a structure from the inventory to inspect its finding details.</p></div>}
+          {selectedAsset ? <AssetReview asset={selectedAsset} pending={updateAsset.isPending} onSave={saveAsset} onPhotoAdded={() => { void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() }); }} onWorkOrder={() => setWorkOrderOpen(true)} onBack={() => setMobilePanel(false)} /> : <div className="asset-review-empty"><Crosshair size={26} /><h2>Select an asset to review</h2><p>Choose a structure from the inventory to inspect its finding details.</p></div>}
         </section>
       </div>
       {workOrderOpen && selectedAsset && <WorkOrderModal asset={selectedAsset} pending={createWorkOrder.isPending} onClose={() => setWorkOrderOpen(false)} onSubmit={draftOrder} />}
@@ -273,7 +274,12 @@ function ProjectPage() {
 
 function EmptyProject() { return <div className="state-panel"><span className="state-icon"><FolderKanban size={22} /></span><div><h2>No projects found</h2><p>This workspace has no project records to review yet.</p><Link href="/" className="text-link">Return to overview <ArrowRight size={14} /></Link></div></div>; }
 
-function AssetReview({ asset, pending, onSave, onWorkOrder, onBack }: { asset: Asset; pending: boolean; onSave: (values: AssetUpdate) => void; onWorkOrder: () => void; onBack: () => void }) {
+function AssetReview({ asset, pending, onSave, onPhotoAdded, onWorkOrder, onBack }: { asset: Asset; pending: boolean; onSave: (values: AssetUpdate) => void; onPhotoAdded: () => void; onWorkOrder: () => void; onBack: () => void }) {
+  const auth = useAuth();
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'processing' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState('');
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [imageBroken, setImageBroken] = useState(false);
   const form = useForm<z.infer<typeof findingSchema>>({
     resolver: zodResolver(findingSchema),
     defaultValues: {
@@ -294,19 +300,85 @@ function AssetReview({ asset, pending, onSave, onWorkOrder, onBack }: { asset: A
   }, [asset.id, asset.notes, asset.severity, asset.defectType, asset.reviewed, reset]);
   const values = form.watch();
   const changed = form.formState.isDirty;
-  const photo = asset.photos[0];
+  const photo = asset.photos.find((item) => item.id === selectedPhotoId) || asset.photos[0];
+  const onPhotoSelected = async (file?: File) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 25 * 1024 * 1024) {
+      setUploadState('error');
+      setUploadError('Choose a JPEG, PNG, or WebP image no larger than 25 MB.');
+      return;
+    }
+    if (!auth.isAuthenticated) {
+      auth.login();
+      return;
+    }
+    setUploadState('uploading');
+    setUploadError('');
+    try {
+      const request = await fetch('/api/storage/uploads/request-url', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      const uploadData = await request.json() as { uploadURL?: string; objectPath?: string; error?: string };
+      if (!request.ok || !uploadData.uploadURL || !uploadData.objectPath) {
+        throw new Error(uploadData.error || 'Could not start this upload.');
+      }
+      const uploaded = await fetch(uploadData.uploadURL, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!uploaded.ok) throw new Error('The image transfer failed. Please try again.');
+      setUploadState('processing');
+      const saved = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/photos`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          objectPath: uploadData.objectPath,
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        }),
+      });
+      const result = await saved.json() as { id?: string; error?: string };
+      if (!saved.ok) throw new Error(result.error || 'The image could not be linked to this structure.');
+      setSelectedPhotoId(result.id || null);
+      setImageBroken(false);
+      setUploadState('idle');
+      onPhotoAdded();
+    } catch (error) {
+      setUploadState('error');
+      setUploadError(error instanceof Error ? error.message : 'The image could not be uploaded.');
+    }
+  };
   return <div className="asset-review-inner">
     <div className="asset-toolbar"><button className="asset-back-mobile" onClick={onBack}><ChevronLeft size={15} /> All assets</button><div className="asset-crumb"><span>ASSET</span><span>/</span><b>{asset.structureId}</b></div><span className={cx('review-status', asset.reviewed ? 'is-reviewed' : 'is-pending')}>{asset.reviewed ? <><CheckCircle2 size={13} /> VERIFIED</> : <><Clock3 size={13} /> NEEDS REVIEW</>}</span></div>
     <div className="asset-detail-head"><div><div className="asset-detail-kicker">{asset.circuit} <span>·</span> {asset.utility}</div><h2>{asset.structureId}</h2><p>Inspected {dateLabel(asset.inspectionDate)} <span>·</span> {asset.latitude != null && asset.longitude != null ? `${asset.latitude.toFixed(4)}°, ${asset.longitude.toFixed(4)}°` : 'Location not recorded'}</p></div><span className={severityClass(values.severity)}>{values.severity}</span></div>
     <div className="evidence-card">
       <div className="evidence-photo">
-        {photo?.url ? <img src={photo.url} alt={`${asset.structureId} inspection evidence`} /> : <EvidenceGraphic asset={{ ...asset, severity: values.severity }} />}
-        <div className="photo-hud"><span><Crosshair size={13} /> AERIAL CAPTURE</span><span>{photo?.name || 'INSPECTION FRAME 01'}</span></div>
-        <div className="photo-reticle"><i /><b /><span /></div>
-        <div className="photo-coordinates">{asset.latitude?.toFixed(4) || '—'} N<br />{asset.longitude?.toFixed(4) || '—'} W</div>
+        {photo?.url ? (!imageBroken ? <img src={photo.url} alt={`${asset.structureId} inspection evidence`} onError={() => setImageBroken(true)} /> : <div className="photo-image-failure"><span>UPLOADED PHOTO UNAVAILABLE</span></div>) : <EvidenceGraphic asset={{ ...asset, severity: values.severity }} />}
+        <div className="photo-hud"><span><Crosshair size={13} /> {photo ? (imageBroken ? 'PHOTO LOAD FAILED' : 'UPLOADED AERIAL IMAGE') : 'VISUAL RECONSTRUCTION'}</span><span>{photo?.name || 'NO IMAGE ATTACHED'}</span></div>
+        {photo && !imageBroken && <><div className="photo-reticle"><i /><b /><span /></div><div className="photo-coordinates">{asset.latitude?.toFixed(4) || '—'} N<br />{asset.longitude?.toFixed(4) || '—'} W</div></>}
+        {imageBroken && <div className="photo-load-error">The uploaded evidence image could not be loaded.</div>}
       </div>
       <div className="evidence-meta"><div><span className="panel-label">DETECTED CONDITION</span><b>{values.defectType}</b></div><div><span className="panel-label">MODEL CONFIDENCE</span><b className="confidence-big">{asset.confidence}<small>%</small></b></div><div className="confidence-meter"><span style={{ width: `${asset.confidence}%` }} /></div></div>
     </div>
+    <div className="evidence-tools">
+      {auth.isAuthenticated ? <label className={cx('button', 'button-photo', (uploadState === 'uploading' || uploadState === 'processing' || auth.isLoading) && 'button-disabled')}>
+        {uploadState === 'uploading' ? <><span className="button-spinner" /> Uploading image…</> : uploadState === 'processing' ? <><span className="button-spinner" /> Processing evidence…</> : 'Upload drone photo'}
+        <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadState === 'uploading' || uploadState === 'processing' || auth.isLoading} onChange={(event) => { void onPhotoSelected(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} aria-label="Upload drone photo" />
+      </label> : <button type="button" className="button button-photo" disabled={auth.isLoading} onClick={auth.login}>{auth.isLoading ? 'Checking sign-in…' : 'Sign in to upload a photo'}</button>}
+      <span className="photo-format-hint">JPEG, PNG, or WebP · up to 25 MB</span>
+      {uploadState === 'error' && <div className="photo-upload-error" role="alert">{uploadError}</div>}
+    </div>
+    {asset.photos.length > 1 && <div className="photo-strip" aria-label="Attached image evidence">
+      {asset.photos.map((item) => <button key={item.id || item.url} type="button" className={cx('photo-thumb', item.id === photo?.id && 'photo-thumb-active')} onClick={() => { setSelectedPhotoId(item.id || null); setImageBroken(false); }} aria-label={`View ${item.name}`}>
+        <img src={item.url} alt="" /><span>{item.name}</span>
+      </button>)}
+    </div>}
     <div className="asset-info-grid">
       <Form {...form}>
         <form className="finding-edit" onSubmit={form.handleSubmit(onSave)}>
@@ -333,7 +405,7 @@ function AssetReview({ asset, pending, onSave, onWorkOrder, onBack }: { asset: A
 }
 
 function EvidenceGraphic({ asset }: { asset: Asset }) {
-  return <div className="evidence-illustration"><div className="terrain-lines" /><div className="terrain-glow" /><div className="power-line line-one" /><div className="power-line line-two" /><div className="tower"><i className="tower-arm arm-a" /><i className="tower-arm arm-b" /><i className="tower-arm arm-c" /><i className="tower-leg leg-a" /><i className="tower-leg leg-b" /><i className="tower-leg leg-c" /><i className="tower-cross cross-a" /><i className="tower-cross cross-b" /></div><div className="finding-pin"><span /><b>{asset.severity.toUpperCase()}</b></div><div className="photo-scale"><span>0</span><i /><span>10 m</span></div><div className="photo-notice">VISUAL RECONSTRUCTION · NO IMAGE ATTACHED</div></div>;
+  return <div className="evidence-illustration"><div className="terrain-lines" /><div className="terrain-glow" /><div className="power-line line-one" /><div className="power-line line-two" /><div className="tower"><i className="tower-arm arm-a" /><i className="tower-arm arm-b" /><i className="tower-arm arm-c" /><i className="tower-leg leg-a" /><i className="tower-leg leg-b" /><i className="tower-leg leg-c" /><i className="tower-cross cross-a" /><i className="tower-cross cross-b" /></div><div className="finding-pin"><span /><b>{asset.severity.toUpperCase()}</b></div><div className="photo-scale"><span>0</span><i /><span>10 m</span></div><div className="photo-notice">{asset.demo ? 'DEMO VISUAL RECONSTRUCTION' : 'VISUAL RECONSTRUCTION'} · NOT AN AERIAL PHOTO</div></div>;
 }
 
 function WorkOrdersPage() {

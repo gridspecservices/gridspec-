@@ -6,6 +6,11 @@
  */
 
 export interface Photo {
+  id?: string;
   name: string;
   url: string;
+  objectPath?: string;
+  contentType?: string;
+  size?: number;
+  createdAt?: string;
 }
