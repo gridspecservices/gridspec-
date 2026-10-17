@@ -1,6 +1,6 @@
-# [Project name]
+# GridLens
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+GridLens helps utility inspection teams review drone-detected asset findings and prepare work for field crews.
 
 ## Run & Operate
 
@@ -22,23 +22,41 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/gridlens/src/` — responsive workspace UI, project review, and draft work-order flows
+- `artifacts/api-server/src/routes/gridlens.ts` — implemented GridLens API routes
+- `lib/api-spec/openapi.yaml` — API contract source of truth
+- `lib/db/src/schema/` — PostgreSQL tables for projects, findings, work orders, and activity
+- `artifacts/api-server/src/lib/gridlens.ts` — workspace summaries and fictional demo seed data
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The API server uses the generated OpenAPI Zod schemas to validate requests and responses.
+- Workspace state and summaries are read from PostgreSQL; the UI uses generated React Query hooks and invalidates affected queries after writes.
+- Fictional demo data is seeded at API startup and can be loaded again idempotently from the empty-workspace action.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+### Working now
+
+- Workspace dashboard with project, finding severity, review, work-order, and recent activity summaries.
+- Project pages with searchable/filterable assets and editable finding notes, defect type, severity, and review status.
+- Draft crew work orders linked to findings, plus project creation.
+- Fictional demo records are labeled in the UI.
+
+### Future scope (not implemented)
+
+- Drone image upload, flight-data ingestion, and bulk asset imports.
+- Work-order approval, dispatch, assignment changes, and completion tracking.
+- Photo evidence storage and report/export workflows.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+No project-specific preferences have been provided.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The API service expects `DATABASE_URL` and the database schema must be pushed with `pnpm --filter @workspace/db run push`.
+- Use `pnpm run typecheck` for the canonical full workspace typecheck.
 
 ## Pointers
 

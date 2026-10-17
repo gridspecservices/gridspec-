@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
 title = "GridLens — Utility Inspection Intelligence"
-description = "Drone inspection workspace for electric utilities, organizing photo evidence, asset findings, analytics, reports, and human-reviewed crew work orders."
+description = "Drone inspection workspace for utility teams to review asset findings, track projects, analyze severity trends, and draft crew work orders."
 version = "1.0.0"
 id = "artifacts/gridlens"
 router = "path"

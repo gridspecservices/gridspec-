@@ -46,20 +46,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Project" }
-  /imports:
-    post:
-      operationId: importAssets
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ImportInput" }
-      responses:
-        "201":
-          description: Imported
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ImportResult" }
   /assets/{id}:
     patch:
       operationId: updateAsset
@@ -90,22 +76,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WorkOrder" }
-  /work-orders/{id}:
-    patch:
-      operationId: updateWorkOrder
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/WorkOrderUpdate" }
-      responses:
-        "200":
-          description: Updated after transition checks
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkOrder" }
   /demo:
     post:
       operationId: loadDemo
@@ -115,20 +85,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Workspace" }
-  /storage/uploads/request-url:
-    post:
-      operationId: requestUploadUrl
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
-      responses:
-        "200":
-          description: Upload URL
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
 components:
   schemas:
     HealthStatus:
@@ -205,22 +161,6 @@ components:
         photos:
           type: array
           items: { $ref: "#/components/schemas/Photo" }
-    ImportInput:
-      type: object
-      required: [projectId, assets]
-      properties:
-        projectId: { type: string }
-        assets:
-          type: array
-          minItems: 1
-          maxItems: 1000
-          items: { $ref: "#/components/schemas/AssetInput" }
-    ImportResult:
-      type: object
-      required: [count, message]
-      properties:
-        count: { type: integer }
-        message: { type: string }
     WorkOrderInput:
       type: object
       required: [assetId, issue, priority, crew]
@@ -239,15 +179,6 @@ components:
             status: { $ref: "#/components/schemas/OrderStatus" }
             createdAt: { type: string }
             reviewer: { type: string }
-    WorkOrderUpdate:
-      type: object
-      properties:
-        issue: { type: string, minLength: 1, maxLength: 5000 }
-        priority: { $ref: "#/components/schemas/Severity" }
-        crew: { type: string, minLength: 1, maxLength: 200 }
-        status: { $ref: "#/components/schemas/OrderStatus" }
-        reviewer: { type: string, maxLength: 150 }
-        reviewConfirmed: { type: boolean }
     AuditEntry:
       type: object
       required: [id, time, entityId, action, actor]
@@ -292,16 +223,3 @@ components:
         bySeverity: { type: array, items: { $ref: "#/components/schemas/Count" } }
         byCircuit: { type: array, items: { $ref: "#/components/schemas/Count" } }
         trend: { type: array, items: { $ref: "#/components/schemas/Count" } }
-    UploadUrlRequest:
-      type: object
-      required: [name, size, contentType]
-      properties:
-        name: { type: string, minLength: 1 }
-        size: { type: integer, minimum: 1, maximum: 20971520 }
-        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
-    UploadUrlResponse:
-      type: object
-      required: [uploadURL, objectPath]
-      properties:
-        uploadURL: { type: string }
-        objectPath: { type: string }
