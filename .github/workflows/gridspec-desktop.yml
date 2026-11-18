@@ -3,8 +3,8 @@ name: Build GridSpec Desktop
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "gridspec-v*"
+    branches:
+      - main
 
 permissions:
   contents: read
