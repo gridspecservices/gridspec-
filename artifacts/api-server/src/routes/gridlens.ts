@@ -15,6 +15,9 @@ import {
   UpdateAssetBody,
   UpdateAssetParams,
   UpdateAssetResponse,
+  UpdateWorkOrderBody,
+  UpdateWorkOrderParams,
+  UpdateWorkOrderResponse,
 } from "@workspace/api-zod";
 import {
   assetsTable,
@@ -28,6 +31,7 @@ import {
   getWorkspaceData,
   recordActivity,
   seedDemoData,
+  transitionWorkOrder,
 } from "../lib/gridlens";
 import { ObjectStorageService } from "../lib/objectStorage";
 
@@ -197,6 +201,7 @@ router.post("/work-orders", async (req, res): Promise<void> => {
     .values({
       id,
       ...parsed.data,
+      crew: parsed.data.crew?.trim() || "Unassigned",
       status: "Draft",
       reviewer: "Unassigned",
     })
@@ -205,6 +210,45 @@ router.post("/work-orders", async (req, res): Promise<void> => {
   res.status(201).json(CreateWorkOrderResponse.parse({
     ...workOrder,
     createdAt: workOrder.createdAt.toISOString(),
+  }));
+});
+
+router.patch("/work-orders/:id", async (req, res): Promise<void> => {
+  const params = UpdateWorkOrderParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpdateWorkOrderBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const actor = req.user
+    ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
+      req.user.email ||
+      "Inspection lead"
+    : "Inspection lead";
+  const result = await transitionWorkOrder({
+    id: params.data.id,
+    status: parsed.data.status,
+    crew: parsed.data.crew,
+    actor,
+  });
+
+  if (result.kind === "not-found") {
+    res.status(404).json({ error: "Work order not found." });
+    return;
+  }
+  if (result.kind === "invalid-transition") {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json(UpdateWorkOrderResponse.parse({
+    ...result.workOrder,
+    createdAt: result.workOrder.createdAt.toISOString(),
   }));
 });
 

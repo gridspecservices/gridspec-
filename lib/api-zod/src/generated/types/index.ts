@@ -28,4 +28,5 @@ export * from './uploadUrlRequestContentType';
 export * from './uploadUrlResponse';
 export * from './workOrder';
 export * from './workOrderInput';
+export * from './workOrderTransition';
 export * from './workspace';

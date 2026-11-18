@@ -147,6 +147,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WorkOrder" }
+  /work-orders/{id}:
+    patch:
+      operationId: updateWorkOrder
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkOrderTransition" }
+      responses:
+        "200":
+          description: Work order moved to the next lifecycle state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkOrder" }
+        "400": { description: Invalid lifecycle transition. }
+        "404": { description: Work order not found. }
   /demo:
     post:
       operationId: loadDemo
@@ -278,20 +296,27 @@ components:
           items: { $ref: "#/components/schemas/Photo" }
     WorkOrderInput:
       type: object
-      required: [assetId, issue, priority, crew]
+      required: [assetId, issue, priority]
       properties:
         assetId: { type: string }
         issue: { type: string, minLength: 1, maxLength: 5000 }
         priority: { $ref: "#/components/schemas/Severity" }
         crew: { type: string, minLength: 1, maxLength: 200 }
+    WorkOrderTransition:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        crew: { type: string, minLength: 1, maxLength: 200 }
     WorkOrder:
       allOf:
         - { $ref: "#/components/schemas/WorkOrderInput" }
         - type: object
-          required: [id, status, createdAt, reviewer]
+          required: [id, status, createdAt, reviewer, crew]
           properties:
             id: { type: string }
             status: { $ref: "#/components/schemas/OrderStatus" }
+            crew: { type: string, minLength: 1, maxLength: 200 }
             createdAt: { type: string }
             reviewer: { type: string }
     AuditEntry:

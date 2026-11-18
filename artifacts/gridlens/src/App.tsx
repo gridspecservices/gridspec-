@@ -14,8 +14,9 @@ import {
 import {
   getGetSummaryQueryKey, getGetWorkspaceQueryKey, useCreateProject,
   useCreateWorkOrder, useGetSummary, useGetWorkspace, useLoadDemo, useUpdateAsset,
+  useUpdateWorkOrder,
 } from '@workspace/api-client-react';
-import type { Asset, AssetUpdate, Project, Severity, Summary, WorkOrder, Workspace } from '@workspace/api-client-react';
+import type { Asset, AssetUpdate, OrderStatus, Project, Severity, Summary, WorkOrder, Workspace } from '@workspace/api-client-react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import NotFound from '@/pages/not-found';
@@ -45,7 +46,6 @@ const projectSchema = z.object({
 const workOrderSchema = z.object({
   issue: z.string().trim().min(1, 'Describe the work for the crew.').max(5000),
   priority: z.enum(['Critical', 'High', 'Medium', 'Low']),
-  crew: z.string().trim().min(1, 'Assign a crew.').max(200),
 });
 
 function App() {
@@ -243,7 +243,7 @@ function ProjectPage() {
       if (!selectedAsset) return;
       updateAsset.mutate({ id: selectedAsset.id, data: values }, { onSuccess: () => { setSaved(true); window.setTimeout(() => setSaved(false), 3200); void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() }); void qc.invalidateQueries({ queryKey: getGetSummaryQueryKey() }); } });
     };
-    const draftOrder = (values: { issue: string; priority: Severity; crew: string }) => {
+    const draftOrder = (values: { issue: string; priority: Severity }) => {
       if (!selectedAsset) return;
       createWorkOrder.mutate({ data: { assetId: selectedAsset.id, ...values } }, { onSuccess: () => { void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() }); void qc.invalidateQueries({ queryKey: getGetSummaryQueryKey() }); setWorkOrderOpen(false); setLocation('/work-orders'); } });
     };
@@ -267,6 +267,10 @@ function ProjectPage() {
           {selectedAsset ? <AssetReview asset={selectedAsset} pending={updateAsset.isPending} onSave={saveAsset} onPhotoAdded={() => { void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() }); }} onWorkOrder={() => setWorkOrderOpen(true)} onBack={() => setMobilePanel(false)} /> : <div className="asset-review-empty"><Crosshair size={26} /><h2>Select an asset to review</h2><p>Choose a structure from the inventory to inspect its finding details.</p></div>}
         </section>
       </div>
+      <ProjectWorkOrders
+        orders={workspace.workOrders.filter(order => assets.some(asset => asset.id === order.assetId))}
+        assets={assets}
+      />
       {workOrderOpen && selectedAsset && <WorkOrderModal asset={selectedAsset} pending={createWorkOrder.isPending} onClose={() => setWorkOrderOpen(false)} onSubmit={draftOrder} />}
     </div>;
   }}</QueryGate>;
@@ -274,6 +278,18 @@ function ProjectPage() {
 
 function EmptyProject() { return <div className="state-panel"><span className="state-icon"><FolderKanban size={22} /></span><div><h2>No projects found</h2><p>This workspace has no project records to review yet.</p><Link href="/" className="text-link">Return to overview <ArrowRight size={14} /></Link></div></div>; }
 
+function ProjectWorkOrders({ orders, assets }: { orders: WorkOrder[]; assets: Asset[] }) {
+  return <section className="panel project-orders-panel">
+    <div className="panel-heading"><div><div className="panel-label">FIELD WORK</div><h2>Project work orders <span className="count-pill">{orders.length}</span></h2></div><Link href="/work-orders" className="text-link">All work orders <ArrowRight size={14} /></Link></div>
+    {orders.length ? <div className="project-order-list">{orders.map(order => <article className="project-order-item" key={order.id}>
+      <div className="project-order-info"><b>{order.id} <span>· {assets.find(asset => asset.id === order.assetId)?.structureId || order.assetId}</span></b><small>{order.issue}</small></div>
+      <span className={severityClass(order.priority)}>{order.priority}</span>
+      <span className={`order-status status-${order.status.toLowerCase().replaceAll(' ', '-')}`}><i />{order.status}</span>
+      <span className="project-order-crew"><span className="crew-avatar">{order.crew.slice(0, 2).toUpperCase()}</span>{order.crew}</span>
+      <WorkOrderControls order={order} />
+    </article>)}</div> : <div className="project-orders-empty"><ClipboardList size={17} /> No work orders are linked to this project yet.</div>}
+  </section>;
+}
 function AssetReview({ asset, pending, onSave, onPhotoAdded, onWorkOrder, onBack }: { asset: Asset; pending: boolean; onSave: (values: AssetUpdate) => void; onPhotoAdded: () => void; onWorkOrder: () => void; onBack: () => void }) {
   const auth = useAuth();
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'processing' | 'error'>('idle');
@@ -421,7 +437,7 @@ function WorkOrdersPage() {
     });
     const open = workspace.workOrders.filter(w => w.status !== 'Completed').length;
     const reviewed = workspace.workOrders.filter(w => w.status === 'Needs Review').length;
-    const draftFromAsset = (values: { issue: string; priority: Severity; crew: string }) => {
+    const draftFromAsset = (values: { issue: string; priority: Severity }) => {
       if (!dialogAsset) return;
       createOrder.mutate({ data: { assetId: dialogAsset.id, ...values } }, { onSuccess: () => { setDialogAsset(null); void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() }); void qc.invalidateQueries({ queryKey: getGetSummaryQueryKey() }); } });
     };
@@ -433,7 +449,7 @@ function WorkOrdersPage() {
       <div className="workorder-summary"><div className="wo-summary-item"><span className="summary-symbol summary-open"><ClipboardList size={17} /></span><span><small>OPEN ORDERS</small><b>{open}</b></span></div><div className="wo-summary-divider" /><div className="wo-summary-item"><span className="summary-symbol summary-review"><Clock3 size={17} /></span><span><small>AWAITING REVIEW</small><b>{reviewed}</b></span></div><div className="wo-summary-divider" /><div className="wo-summary-context"><span className="pulse-dot" /> CREW PLANNING <b>·</b> {workspace.projects.length} active projects</div></div>
       <section className="panel workorder-panel">
         <div className="wo-table-toolbar"><div><div className="panel-label">CREW DISPATCH QUEUE</div><h2>Work orders <span className="count-pill">{workspace.workOrders.length}</span></h2></div><div className="wo-controls"><label className="wo-search"><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search orders…" aria-label="Search work orders" data-testid="input-work-order-search" /></label><label className="status-select-wrap"><Filter size={14} /><select value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter work order status" data-testid="select-order-status"><option>All statuses</option><option>Draft</option><option>Needs Review</option><option>Approved</option><option>Assigned</option><option>Completed</option></select><ChevronDown size={13} /></label></div></div>
-        {filtered.length ? <div className="workorder-table-wrap"><table className="workorder-table"><thead><tr><th>ORDER / ASSET</th><th>ISSUE</th><th>PRIORITY</th><th>CREW</th><th>STATUS</th><th>CREATED</th></tr></thead><tbody>{filtered.map(order => <WorkOrderRow key={order.id} order={order} asset={workspace.assets.find(a => a.id === order.assetId)} />)}</tbody></table></div> : <div className="table-empty"><div className="empty-grid-icon"><ClipboardList size={22} /></div><h3>{workspace.workOrders.length ? 'No matching work orders' : 'No work orders drafted'}</h3><p>{workspace.workOrders.length ? 'Try adjusting your search or status filter.' : 'Create an order from a verified finding to give the crew a clear starting point.'}</p>{!workspace.workOrders.length && draftable && <button className="button button-primary" onClick={() => setDialogAsset(draftable)} data-testid="button-create-first-order"><Plus size={15} /> Draft a work order</button>}</div>}
+        {filtered.length ? <div className="workorder-table-wrap"><table className="workorder-table"><thead><tr><th>ORDER / ASSET</th><th>ISSUE</th><th>PRIORITY</th><th>CREW</th><th>STATUS</th><th>CREATED</th><th>ACTION</th></tr></thead><tbody>{filtered.map(order => <WorkOrderRow key={order.id} order={order} asset={workspace.assets.find(a => a.id === order.assetId)} />)}</tbody></table></div> : <div className="table-empty"><div className="empty-grid-icon"><ClipboardList size={22} /></div><h3>{workspace.workOrders.length ? 'No matching work orders' : 'No work orders drafted'}</h3><p>{workspace.workOrders.length ? 'Try adjusting your search or status filter.' : 'Create an order from a verified finding to give the crew a clear starting point.'}</p>{!workspace.workOrders.length && draftable && <button className="button button-primary" onClick={() => setDialogAsset(draftable)} data-testid="button-create-first-order"><Plus size={15} /> Draft a work order</button>}</div>}
         <div className="table-footer"><span>Showing {filtered.length} of {workspace.workOrders.length} orders</span><span><i className="demo-dot" /> {workspace.assets.some(asset => asset.demo) ? 'DEMO DATA INCLUDED' : 'WORKSPACE RECORDS'}</span></div>
       </section>
       <div className="workorder-guidance"><span className="guidance-icon"><Zap size={16} /></span><span><b>From finding to field work</b><small>Orders begin as drafts. Make the issue, priority, and crew assignment clear before dispatch.</small></span><ArrowDownRight size={17} /></div>
@@ -443,9 +459,15 @@ function WorkOrdersPage() {
 }
 
 function WorkOrderRow({ order, asset }: { order: WorkOrder; asset?: Asset }) {
-  return <tr data-testid={`row-work-order-${order.id}`}><td><span className="order-id">{order.id}</span><small className="order-asset"><MapPin size={11} /> {asset?.structureId || order.assetId}</small></td><td className="order-issue">{order.issue}</td><td><span className={severityClass(order.priority)}>{order.priority}</span></td><td><span className="crew-avatar">{order.crew.slice(0, 2).toUpperCase()}</span><span className="crew-name">{order.crew}</span></td><td><span className={`order-status status-${order.status.toLowerCase().replaceAll(' ', '-')}`}><i />{order.status}</span></td><td className="order-date">{dateLabel(order.createdAt)}</td></tr>;
+  return <tr data-testid={`row-work-order-${order.id}`}><td><span className="order-id">{order.id}</span><small className="order-asset"><MapPin size={11} /> {asset?.structureId || order.assetId}</small></td><td className="order-issue">{order.issue}</td><td><span className={severityClass(order.priority)}>{order.priority}</span></td><td><span className="crew-avatar">{order.crew.slice(0, 2).toUpperCase()}</span><span className="crew-name">{order.crew}</span></td><td><span className={`order-status status-${order.status.toLowerCase().replaceAll(' ', '-')}`}><i />{order.status}</span></td><td className="order-date">{dateLabel(order.createdAt)}</td><td><WorkOrderControls order={order} /></td></tr>;
 }
 
+const workOrderNextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
+  Draft: 'Needs Review',
+  'Needs Review': 'Approved',
+  Approved: 'Assigned',
+  Assigned: 'Completed',
+};
 function ProjectModal({ pending, onClose, onSubmit }: { pending: boolean; onClose: () => void; onSubmit: (data: { name: string; utility: string; circuit: string }) => void }) {
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
@@ -459,21 +481,19 @@ function ProjectModal({ pending, onClose, onSubmit }: { pending: boolean; onClos
     <div className="modal-actions"><button type="button" className="button button-quiet" onClick={onClose} data-testid="button-cancel-project">Cancel</button><button className="button button-primary" disabled={pending} data-testid="button-create-project-submit">{pending ? <span className="button-spinner" /> : <Plus size={15} />}{pending ? 'Creating…' : 'Create project'}</button></div></form></Form></Modal>;
 }
 
-function WorkOrderModal({ asset, pending, onClose, onSubmit }: { asset: Asset; pending: boolean; onClose: () => void; onSubmit: (data: { issue: string; priority: Severity; crew: string }) => void }) {
+function WorkOrderModal({ asset, pending, onClose, onSubmit }: { asset: Asset; pending: boolean; onClose: () => void; onSubmit: (data: { issue: string; priority: Severity }) => void }) {
   const form = useForm<z.infer<typeof workOrderSchema>>({
     resolver: zodResolver(workOrderSchema),
     defaultValues: {
       issue: asset.notes || `${asset.defectType} at ${asset.structureId}`,
       priority: asset.severity,
-      crew: '',
     },
     mode: 'onBlur',
   });
   const values = form.watch();
-  return <Modal onClose={onClose} label="Draft a work order"><Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="modal-content"><div className="modal-kicker">CREW PLANNING / NEW DRAFT</div><h2>Turn finding into work</h2><p>Give the crew a clear issue and priority. This order starts as a draft.</p><div className="modal-asset-ref"><span className="asset-ref-icon"><MapPin size={14} /></span><span><b>{asset.structureId}</b><small>{asset.circuit} · {asset.defectType}</small></span><span className={severityClass(values.priority)}>{values.priority}</span></div>
+  return <Modal onClose={onClose} label="Draft a work order"><Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="modal-content"><div className="modal-kicker">CREW PLANNING / NEW DRAFT</div><h2>Turn finding into work</h2><p>Describe the issue and set its priority. A lead will review and assign a crew before dispatch.</p><div className="modal-asset-ref"><span className="asset-ref-icon"><MapPin size={14} /></span><span><b>{asset.structureId}</b><small>{asset.circuit} · {asset.defectType}</small></span><span className={severityClass(values.priority)}>{values.priority}</span></div>
     <FormField control={form.control} name="issue" render={({ field }) => <FormItem><FormLabel className="field-label">Issue description</FormLabel><FormControl><textarea className="field-input field-textarea modal-issue" maxLength={5000} {...field} data-testid="input-order-issue" /></FormControl><FormMessage /></FormItem>} />
     <FormField control={form.control} name="priority" render={({ field }) => <FormItem><FormLabel className="field-label">Priority</FormLabel><FormControl><select className="field-input field-select" {...field} data-testid="select-order-priority">{severityOrder.map(s => <option key={s} value={s}>{s}</option>)}</select></FormControl><FormMessage /></FormItem>} />
-    <FormField control={form.control} name="crew" render={({ field }) => <FormItem><FormLabel className="field-label">Crew assignment</FormLabel><FormControl><input className="field-input" maxLength={200} placeholder="e.g. Line Crew 4" {...field} data-testid="input-order-crew" /></FormControl><FormMessage /></FormItem>} />
     <div className="modal-actions"><button type="button" className="button button-quiet" onClick={onClose} data-testid="button-cancel-order">Cancel</button><button className="button button-primary" disabled={pending} data-testid="button-submit-order">{pending ? <span className="button-spinner" /> : <FileText size={15} />}{pending ? 'Drafting…' : 'Create draft'}</button></div></form></Form></Modal>;
 }
 
@@ -482,3 +502,52 @@ function Modal({ children, onClose, label }: { children: ReactNode; onClose: () 
 }
 
 export default App;
+
+const workOrderActionLabel: Partial<Record<OrderStatus, string>> = {
+  'Needs Review': 'Send to review',
+  Approved: 'Approve',
+  Assigned: 'Assign & dispatch',
+  Completed: 'Mark complete',
+};
+
+function WorkOrderControls({ order }: { order: WorkOrder }) {
+  const qc = useQueryClient();
+  const updateOrder = useUpdateWorkOrder();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [crew, setCrew] = useState(order.crew === 'Unassigned' ? '' : order.crew);
+  const [error, setError] = useState('');
+  const nextStatus = workOrderNextStatus[order.status];
+  const update = (status: OrderStatus, assignedCrew?: string) => {
+    setError('');
+    updateOrder.mutate(
+      { id: order.id, data: { status, ...(assignedCrew ? { crew: assignedCrew.trim() } : {}) } },
+      {
+        onSuccess: () => {
+          setAssignOpen(false);
+          void qc.invalidateQueries({ queryKey: getGetWorkspaceQueryKey() });
+          void qc.invalidateQueries({ queryKey: getGetSummaryQueryKey() });
+        },
+        onError: () => setError('This work order could not be updated. Refresh and try again.'),
+      },
+    );
+  };
+  if (!nextStatus) return <span className="workorder-action-done">Complete</span>;
+  return <>
+    <div className="workorder-action-cell">
+      {nextStatus === 'Assigned'
+        ? <button type="button" className="button button-quiet workorder-action-button" onClick={() => setAssignOpen(true)} disabled={updateOrder.isPending} data-testid={`button-work-order-${order.id}-assign`}>{workOrderActionLabel[nextStatus]}</button>
+        : <button type="button" className="button button-quiet workorder-action-button" onClick={() => update(nextStatus)} disabled={updateOrder.isPending} data-testid={`button-work-order-${order.id}-${nextStatus.toLowerCase().replaceAll(' ', '-')}`}>{updateOrder.isPending ? 'Saving…' : workOrderActionLabel[nextStatus]}</button>}
+      {error && <span className="workorder-action-error" role="alert">{error}</span>}
+    </div>
+    {assignOpen && <Modal onClose={() => setAssignOpen(false)} label="Assign work order to a crew">
+      <form className="modal-content" onSubmit={event => { event.preventDefault(); if (crew.trim()) update('Assigned', crew); }}>
+        <div className="modal-kicker">APPROVED WORK / DISPATCH</div>
+        <h2>Assign a crew</h2>
+        <p>Choose the crew responsible for this work before dispatch.</p>
+        <label className="field-label" htmlFor={`crew-${order.id}`}>Crew assignment</label>
+        <input id={`crew-${order.id}`} className="field-input" maxLength={200} required value={crew} onChange={event => setCrew(event.target.value)} placeholder="e.g. Line Crew 4" data-testid={`input-assign-crew-${order.id}`} />
+        <div className="modal-actions"><button type="button" className="button button-quiet" onClick={() => setAssignOpen(false)}>Cancel</button><button className="button button-primary" disabled={updateOrder.isPending || !crew.trim()} data-testid={`button-dispatch-${order.id}`}>{updateOrder.isPending ? 'Dispatching…' : 'Assign & dispatch'}</button></div>
+      </form>
+    </Modal>}
+  </>;
+}

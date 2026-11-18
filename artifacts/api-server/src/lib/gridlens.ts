@@ -271,7 +271,9 @@ export async function getWorkspaceData(includePrivatePhotos = false) {
     db.select().from(assetsTable).orderBy(desc(assetsTable.inspectionDate)),
     db.select().from(workOrdersTable).orderBy(desc(workOrdersTable.createdAt)),
     db.select().from(activityTable).orderBy(desc(activityTable.time)).limit(12),
-    includePrivatePhotos ? db.select().from(assetPhotosTable) : Promise.resolve([]),
+    includePrivatePhotos
+      ? db.select().from(assetPhotosTable)
+      : Promise.resolve([] as (typeof assetPhotosTable.$inferSelect)[]),
   ]);
 
   return {
@@ -364,6 +366,81 @@ export async function recordActivity(
     entityId,
     action,
     actor,
+  });
+}
+
+const nextWorkOrderStatus: Record<string, string | undefined> = {
+  Draft: "Needs Review",
+  "Needs Review": "Approved",
+  Approved: "Assigned",
+  Assigned: "Completed",
+};
+
+export async function transitionWorkOrder({
+  id,
+  status,
+  crew,
+  actor,
+}: {
+  id: string;
+  status: string;
+  crew?: string;
+  actor: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(workOrdersTable)
+      .where(eq(workOrdersTable.id, id))
+      .for("update");
+
+    if (!current) return { kind: "not-found" as const };
+    if (nextWorkOrderStatus[current.status] !== status) {
+      return {
+        kind: "invalid-transition" as const,
+        error: `A work order in ${current.status} cannot move to ${status}.`,
+      };
+    }
+
+    const assignedCrew = crew?.trim();
+    if (status === "Assigned" && !assignedCrew) {
+      return {
+        kind: "invalid-transition" as const,
+        error: "Choose a crew before dispatching this work order.",
+      };
+    }
+    if (status !== "Assigned" && crew !== undefined) {
+      return {
+        kind: "invalid-transition" as const,
+        error: "Crew can only be set when dispatching an approved work order.",
+      };
+    }
+
+    const [workOrder] = await tx
+      .update(workOrdersTable)
+      .set({
+        status,
+        ...(status === "Assigned" ? { crew: assignedCrew! } : {}),
+        ...(status === "Approved" ? { reviewer: actor } : {}),
+      })
+      .where(eq(workOrdersTable.id, id))
+      .returning();
+
+    const action = status === "Needs Review"
+      ? "Work order submitted for review"
+      : status === "Approved"
+        ? "Work order approved"
+        : status === "Assigned"
+          ? `Work order assigned to ${assignedCrew} and dispatched`
+          : "Work order marked complete";
+    await tx.insert(activityTable).values({
+      id: randomUUID(),
+      entityId: id,
+      action,
+      actor,
+    });
+
+    return { kind: "updated" as const, workOrder };
   });
 }
 

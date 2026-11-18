@@ -39,6 +39,8 @@ export const getWorkspaceResponseWorkOrdersItemOneIssueMax = 5000;
 
 export const getWorkspaceResponseWorkOrdersItemOneCrewMax = 200;
 
+export const getWorkspaceResponseWorkOrdersItemTwoCrewMax = 200;
+
 
 
 export const GetWorkspaceResponse = zod.object({
@@ -95,6 +97,7 @@ export const GetWorkspaceResponse = zod.object({
 }).and(zod.object({
   "id": zod.string(),
   "status": zod.enum(['Draft', 'Needs Review', 'Approved', 'Assigned', 'Completed']),
+  "crew": zod.string().min(1).max(getWorkspaceResponseWorkOrdersItemTwoCrewMax),
   "createdAt": zod.string(),
   "reviewer": zod.string()
 }))),
@@ -351,12 +354,14 @@ export const CreateWorkOrderBody = zod.object({
   "assetId": zod.string(),
   "issue": zod.string().min(1).max(createWorkOrderBodyIssueMax),
   "priority": zod.enum(['Critical', 'High', 'Medium', 'Low']),
-  "crew": zod.string().min(1).max(createWorkOrderBodyCrewMax)
+  "crew": zod.string().min(1).max(createWorkOrderBodyCrewMax).optional()
 })
 
 export const createWorkOrderResponseOneIssueMax = 5000;
 
 export const createWorkOrderResponseOneCrewMax = 200;
+
+export const createWorkOrderResponseTwoCrewMax = 200;
 
 
 
@@ -368,6 +373,42 @@ export const CreateWorkOrderResponse = zod.object({
 }).and(zod.object({
   "id": zod.string(),
   "status": zod.enum(['Draft', 'Needs Review', 'Approved', 'Assigned', 'Completed']),
+  "crew": zod.string().min(1).max(createWorkOrderResponseTwoCrewMax),
+  "createdAt": zod.string(),
+  "reviewer": zod.string()
+}))
+
+
+export const UpdateWorkOrderParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateWorkOrderBodyCrewMax = 200;
+
+
+
+export const UpdateWorkOrderBody = zod.object({
+  "status": zod.enum(['Draft', 'Needs Review', 'Approved', 'Assigned', 'Completed']),
+  "crew": zod.string().min(1).max(updateWorkOrderBodyCrewMax).optional()
+})
+
+export const updateWorkOrderResponseOneIssueMax = 5000;
+
+export const updateWorkOrderResponseOneCrewMax = 200;
+
+export const updateWorkOrderResponseTwoCrewMax = 200;
+
+
+
+export const UpdateWorkOrderResponse = zod.object({
+  "assetId": zod.string(),
+  "issue": zod.string().min(1).max(updateWorkOrderResponseOneIssueMax),
+  "priority": zod.enum(['Critical', 'High', 'Medium', 'Low']),
+  "crew": zod.string().min(1).max(updateWorkOrderResponseOneCrewMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['Draft', 'Needs Review', 'Approved', 'Assigned', 'Completed']),
+  "crew": zod.string().min(1).max(updateWorkOrderResponseTwoCrewMax),
   "createdAt": zod.string(),
   "reviewer": zod.string()
 }))
@@ -399,6 +440,8 @@ export const loadDemoResponseAssetsItemOneNotesMax = 5000;
 export const loadDemoResponseWorkOrdersItemOneIssueMax = 5000;
 
 export const loadDemoResponseWorkOrdersItemOneCrewMax = 200;
+
+export const loadDemoResponseWorkOrdersItemTwoCrewMax = 200;
 
 
 
@@ -456,6 +499,7 @@ export const LoadDemoResponse = zod.object({
 }).and(zod.object({
   "id": zod.string(),
   "status": zod.enum(['Draft', 'Needs Review', 'Approved', 'Assigned', 'Completed']),
+  "crew": zod.string().min(1).max(loadDemoResponseWorkOrdersItemTwoCrewMax),
   "createdAt": zod.string(),
   "reviewer": zod.string()
 }))),

@@ -203,12 +203,26 @@ export interface WorkOrderInput {
      * @minLength 1
      * @maxLength 200
      */
-  crew: string;
+  crew?: string;
+}
+
+export interface WorkOrderTransition {
+  status: OrderStatus;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  crew?: string;
 }
 
 export type WorkOrder = WorkOrderInput & {
   id: string;
   status: OrderStatus;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  crew: string;
   createdAt: string;
   reviewer: string;
 };

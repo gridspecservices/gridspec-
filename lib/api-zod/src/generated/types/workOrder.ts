@@ -10,6 +10,11 @@ import type { WorkOrderInput } from './workOrderInput';
 export type WorkOrder = WorkOrderInput & {
   id: string;
   status: OrderStatus;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  crew: string;
   createdAt: string;
   reviewer: string;
 };
